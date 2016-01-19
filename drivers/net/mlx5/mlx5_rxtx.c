@@ -950,7 +950,11 @@ mlx5_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		 */
 		rte_prefetch0(seg);
 		rte_prefetch0(&seg->cacheline1);
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		ret = rxq->poll(rxq->cq, &flags, &vlan_tci);
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		ret = rxq->poll(rxq->cq, NULL, NULL, &flags, &vlan_tci);
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 		if (unlikely(ret < 0)) {
 			struct ibv_wc wc;
 			int wcs_n;
@@ -1043,14 +1047,11 @@ repost:
 #ifdef DEBUG_RECV
 	DEBUG("%p: reposting %u WRs", (void *)rxq, i);
 #endif
-	ret = rxq->recv(rxq->wq, sges, i);
-	if (unlikely(ret)) {
-		/* Inability to repost WRs is fatal. */
-		DEBUG("%p: recv_burst(): failed (ret=%d)",
-		      (void *)rxq->priv,
-		      ret);
-		abort();
-	}
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	rte_wmb();
+	rxq->poll_db(rxq->cq);
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
+	rxq->recv(rxq->wq, sges, i);
 	rxq->elts_head = elts_head;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 	/* Increment packets counter. */

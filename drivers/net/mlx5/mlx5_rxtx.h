@@ -108,6 +108,9 @@ struct rxq {
 	struct ibv_cq *cq; /* Completion Queue. */
 	struct ibv_exp_wq *wq; /* Work Queue. */
 	int32_t (*poll)(); /* Verbs poll function. */
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	void (*poll_db)(struct ibv_cq *cq); /* Verbs poll function. */
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	int32_t (*recv)(); /* Verbs receive function. */
 	unsigned int port_id; /* Port ID for incoming packets. */
 	unsigned int elts_n; /* (*elts)[] length. */

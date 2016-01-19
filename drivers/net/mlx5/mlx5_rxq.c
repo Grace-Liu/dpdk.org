@@ -1346,11 +1346,22 @@ rxq_setup(struct rte_eth_dev *dev, struct rxq *rxq, uint16_t desc,
 	DEBUG("%p: rxq updated with %p", (void *)rxq, (void *)&tmpl);
 	assert(ret == 0);
 	/* Assign function in queue. */
-#ifdef HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS
-	rxq->poll = rxq->if_cq->poll_length_flags_cvlan;
-#else /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
-	rxq->poll = rxq->if_cq->poll_length_flags;
-#endif /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+# ifdef HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS
+	if (rxq->vlan_strip)
+		rxq->poll = rxq->if_cq->poll_length_flags_cvlan_no_update;
+	else
+# endif /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
+		rxq->poll = rxq->if_cq->poll_length_flags_no_update;
+	rxq->poll_db = rxq->if_cq->update_cq;
+#else /* HAVE_EXP_DEVICE_RX_BURST */
+# ifdef HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS
+	if (rxq->vlan_strip)
+		rxq->poll = rxq->if_cq->poll_length_flags_cvlan;
+	else
+# endif /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
+		rxq->poll = rxq->if_cq->poll_length_flags;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	if (rxq->sp)
 		rxq->recv = rxq->if_wq->recv_sg_list;
 	else
