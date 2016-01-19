@@ -922,10 +922,14 @@ uint16_t
 mlx5_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 {
 	struct rxq *rxq = (struct rxq *)dpdk_rxq;
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	struct rte_mbuf *(*elts)[rxq->elts_n] = rxq->elts.no_sp;
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 	struct rxq_elt (*elts)[rxq->elts_n] = rxq->elts.no_sp;
+	struct ibv_sge sges[pkts_n];
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	const unsigned int elts_n = rxq->elts_n;
 	unsigned int elts_head = rxq->elts_head;
-	struct ibv_sge sges[pkts_n];
 	unsigned int i;
 	unsigned int pkts_ret = 0;
 	int ret;
@@ -933,23 +937,27 @@ mlx5_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	if (unlikely(rxq->sp))
 		return mlx5_rx_burst_sp(dpdk_rxq, pkts, pkts_n);
 	for (i = 0; (i != pkts_n); ++i) {
-		struct rxq_elt *elt = &(*elts)[elts_head];
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *elt = (*elts)[elts_head];
+#else /* HAVE_EXP_DEVICE_RX_BURST */
+		struct rxq_elt *rx_elt = &(*elts)[elts_head];
+		struct rte_mbuf *elt = rx_elt->buf;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
+		struct rte_mbuf *rep = NULL;
 		unsigned int len;
-		struct rte_mbuf *seg = elt->buf;
-		struct rte_mbuf *rep;
 		uint32_t flags;
 		uint16_t vlan_tci;
 
 		/* Sanity checks. */
-		assert(seg != NULL);
+		assert(elt != NULL);
 		assert(elts_head < rxq->elts_n);
 		assert(rxq->elts_head < rxq->elts_n);
 		/*
 		 * Fetch initial bytes of packet descriptor into a
 		 * cacheline while allocating rep.
 		 */
-		rte_prefetch0(seg);
-		rte_prefetch0(&seg->cacheline1);
+		rte_prefetch0(elt);
+		rte_prefetch0(&elt->cacheline1);
 #ifdef HAVE_EXP_DEVICE_RX_BURST
 		ret = rxq->poll(rxq->cq, &flags, &vlan_tci);
 #else /* HAVE_EXP_DEVICE_RX_BURST */
@@ -1004,33 +1012,37 @@ mlx5_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			goto repost;
 		}
 
-		/* Reconfigure sge to use rep instead of seg. */
-		elt->sge.addr = (uintptr_t)rep->buf_addr + RTE_PKTMBUF_HEADROOM;
-		assert(elt->sge.lkey == rxq->mr->lkey);
-		elt->buf = rep;
-
-		/* Add SGE to array for repost. */
-		sges[i] = elt->sge;
-
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		(*elts)[elts_head] = rep;
+		rxq->if_wq->recv_pending(rxq->wq,
+					 (uintptr_t)((uint8_t *)rep->buf_addr +
+						     RTE_PKTMBUF_HEADROOM));
+#else /* HAVE_EXP_DEVICE_RX_BURST */
+		rx_elt->sge.addr = (uintptr_t)rep->buf_addr + RTE_PKTMBUF_HEADROOM;
+		assert(rx_elt->sge.lkey == rxq->mr->lkey);
+		rx_elt->buf = rep;
+		sges[i] = rx_elt->sge;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 		/* Update seg information. */
-		SET_DATA_OFF(seg, RTE_PKTMBUF_HEADROOM);
-		NB_SEGS(seg) = 1;
-		PORT(seg) = rxq->port_id;
-		NEXT(seg) = NULL;
-		PKT_LEN(seg) = len;
-		DATA_LEN(seg) = len;
+		SET_DATA_OFF(elt, RTE_PKTMBUF_HEADROOM);
+		NB_SEGS(elt) = 1;
+		PORT(elt) = rxq->port_id;
+		NEXT(elt) = NULL;
+		PKT_LEN(elt) = len;
+		DATA_LEN(elt) = len;
+
 		if (rxq->csum | rxq->csum_l2tun | rxq->vlan_strip) {
-			seg->packet_type = rxq_cq_to_pkt_type(flags);
-			seg->ol_flags = rxq_cq_to_ol_flags(rxq, flags);
+			elt->packet_type = rxq_cq_to_pkt_type(flags);
+			elt->ol_flags = rxq_cq_to_ol_flags(rxq, flags);
 #ifdef HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS
 			if (flags & IBV_EXP_CQ_RX_CVLAN_STRIPPED_V1) {
-				seg->ol_flags |= PKT_RX_VLAN_PKT;
-				seg->vlan_tci = vlan_tci;
+				elt->ol_flags |= PKT_RX_VLAN_PKT;
+				elt->vlan_tci = vlan_tci;
 			}
 #endif /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
 		}
 		/* Return packet. */
-		*(pkts++) = seg;
+		*(pkts++) = elt;
 		++pkts_ret;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		/* Increment bytes counter. */
@@ -1049,9 +1061,11 @@ repost:
 #endif
 #ifdef HAVE_EXP_DEVICE_RX_BURST
 	rte_wmb();
+	rxq->recv_db(rxq->wq);
 	rxq->poll_db(rxq->cq);
-#endif /* HAVE_EXP_DEVICE_RX_BURST */
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 	rxq->recv(rxq->wq, sges, i);
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	rxq->elts_head = elts_head;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 	/* Increment packets counter. */

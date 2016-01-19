@@ -787,9 +787,15 @@ static int
 rxq_alloc_elts(struct rxq *rxq, unsigned int elts_n, struct rte_mbuf **pool)
 {
 	unsigned int i;
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	struct rte_mbuf *(*elts)[elts_n] =
+		rte_calloc_socket("RXQ elements", elts_n, sizeof((*elts)[0]), 0,
+				  rxq->socket);
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 	struct rxq_elt (*elts)[elts_n] =
 		rte_calloc_socket("RXQ elements", 1, sizeof(*elts), 0,
 				  rxq->socket);
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	int ret = 0;
 
 	if (elts == NULL) {
@@ -799,8 +805,10 @@ rxq_alloc_elts(struct rxq *rxq, unsigned int elts_n, struct rte_mbuf **pool)
 	}
 	/* For each WR (packet). */
 	for (i = 0; (i != elts_n); ++i) {
+#ifndef HAVE_EXP_DEVICE_RX_BURST
 		struct rxq_elt *elt = &(*elts)[i];
 		struct ibv_sge *sge = &(*elts)[i].sge;
+#endif /* !HAVE_EXP_DEVICE_RX_BURST */
 		struct rte_mbuf *buf;
 
 		if (pool != NULL) {
@@ -815,12 +823,12 @@ rxq_alloc_elts(struct rxq *rxq, unsigned int elts_n, struct rte_mbuf **pool)
 			ret = ENOMEM;
 			goto error;
 		}
-		elt->buf = buf;
 		/* Headroom is reserved by rte_pktmbuf_alloc(). */
 		assert(DATA_OFF(buf) == RTE_PKTMBUF_HEADROOM);
 		/* Buffer is supposed to be empty. */
 		assert(rte_pktmbuf_data_len(buf) == 0);
 		assert(rte_pktmbuf_pkt_len(buf) == 0);
+#ifndef HAVE_EXP_DEVICE_RX_BURST
 		/* sge->addr must be able to store a pointer. */
 		assert(sizeof(sge->addr) >= sizeof(uintptr_t));
 		/* SGE keeps its headroom. */
@@ -830,6 +838,10 @@ rxq_alloc_elts(struct rxq *rxq, unsigned int elts_n, struct rte_mbuf **pool)
 		sge->lkey = rxq->mr->lkey;
 		/* Redundant check for tailroom. */
 		assert(sge->length == rte_pktmbuf_tailroom(buf));
+		elt->buf = buf;
+#else /* HAVE_EXP_DEVICE_RX_BURST */
+		(*elts)[i] = buf;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	}
 	DEBUG("%p: allocated and configured %u single-segment WRs",
 	      (void *)rxq, elts_n);
@@ -842,9 +854,13 @@ error:
 	if (elts != NULL) {
 		assert(pool == NULL);
 		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+			struct rte_mbuf *buf = (*elts)[i];
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 			struct rxq_elt *elt = &(*elts)[i];
 			struct rte_mbuf *buf = elt->buf;
 
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 			if (buf != NULL)
 				rte_pktmbuf_free_seg(buf);
 		}
@@ -866,7 +882,11 @@ rxq_free_elts(struct rxq *rxq)
 {
 	unsigned int i;
 	unsigned int elts_n = rxq->elts_n;
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	struct rte_mbuf *(*elts)[elts_n] = rxq->elts.no_sp;
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 	struct rxq_elt (*elts)[elts_n] = rxq->elts.no_sp;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 
 	DEBUG("%p: freeing WRs", (void *)rxq);
 	rxq->elts_n = 0;
@@ -874,8 +894,12 @@ rxq_free_elts(struct rxq *rxq)
 	if (elts == NULL)
 		return;
 	for (i = 0; (i != RTE_DIM(*elts)); ++i) {
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *buf = (*elts)[i];
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		struct rxq_elt *elt = &(*elts)[i];
 		struct rte_mbuf *buf = elt->buf;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 
 		if (buf != NULL)
 			rte_pktmbuf_free_seg(buf);
@@ -1033,6 +1057,14 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 			}
 		}
 	} else {
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *(*elts)[rxq->elts_n] = rxq->elts.no_sp;
+
+		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
+
+			pool[k++] = (*elts)[i];
+		}
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		struct rxq_elt (*elts)[rxq->elts_n] = rxq->elts.no_sp;
 
 		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
@@ -1041,6 +1073,7 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 
 			pool[k++] = buf;
 		}
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	}
 	assert(k == mbuf_n);
 	tmpl.elts_n = 0;
@@ -1087,6 +1120,18 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 				break;
 		}
 	} else {
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *(*elts)[tmpl.elts_n] = tmpl.elts.no_sp;
+
+		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
+			struct ibv_sge sge;
+
+			sge_from_mbuf(&sge, (*elts)[i], rxq->mr->lkey);
+			err = tmpl.if_wq->recv_burst(tmpl.wq, &sge, 1);
+			if (err)
+				break;
+		}
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		struct rxq_elt (*elts)[tmpl.elts_n] = tmpl.elts.no_sp;
 
 		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
@@ -1097,6 +1142,7 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 			if (err)
 				break;
 		}
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	}
 	if (err) {
 		ERROR("%p: failed to post SGEs with error %d",
@@ -1289,6 +1335,9 @@ rxq_setup(struct rte_eth_dev *dev, struct rxq *rxq, uint16_t desc,
 	attr.params = (struct ibv_exp_query_intf_params){
 		.intf_scope = IBV_EXP_INTF_GLOBAL,
 		.intf = IBV_EXP_INTF_WQ,
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		.intf_version = 1,
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 		.obj = tmpl.wq,
 	};
 	tmpl.if_wq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
@@ -1321,6 +1370,17 @@ rxq_setup(struct rte_eth_dev *dev, struct rxq *rxq, uint16_t desc,
 				break;
 		}
 	} else {
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *(*elts)[tmpl.elts_n] = tmpl.elts.no_sp;
+		struct ibv_sge sge;
+
+		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
+			sge_from_mbuf(&sge, (*elts)[i], tmpl.mr->lkey);
+			ret = tmpl.if_wq->recv_burst(tmpl.wq, &sge, 1);
+			if (ret)
+				break;
+		}
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		struct rxq_elt (*elts)[tmpl.elts_n] = tmpl.elts.no_sp;
 
 		for (i = 0; (i != RTE_DIM(*elts)); ++i) {
@@ -1331,6 +1391,7 @@ rxq_setup(struct rte_eth_dev *dev, struct rxq *rxq, uint16_t desc,
 			if (ret)
 				break;
 		}
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	}
 	if (ret) {
 		ERROR("%p: failed to post SGEs with error %d",
@@ -1365,7 +1426,12 @@ rxq_setup(struct rte_eth_dev *dev, struct rxq *rxq, uint16_t desc,
 	if (rxq->sp)
 		rxq->recv = rxq->if_wq->recv_sg_list;
 	else
-		rxq->recv = rxq->if_wq->recv_burst;
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		rxq->recv = rxq->if_wq->recv_pending;
+	rxq->recv_db = rxq->if_wq->recv_flush;
+#else /* HAVE_EXP_DEVICE_RX_BURST */
+	rxq->recv = rxq->if_wq->recv_burst;
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	return 0;
 error:
 	rxq_cleanup(&tmpl);

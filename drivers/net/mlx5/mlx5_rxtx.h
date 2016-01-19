@@ -87,11 +87,13 @@ struct rxq_elt_sp {
 	struct rte_mbuf *bufs[MLX5_PMD_SGE_WR_N]; /* SGEs buffers. */
 };
 
+#ifndef HAVE_EXP_DEVICE_RX_BURST
 /* RX element. */
 struct rxq_elt {
-	struct ibv_sge sge; /* Scatter/Gather Element. */
-	struct rte_mbuf *buf; /* SGE buffer. */
+       struct ibv_sge sge; /* Scatter/Gather Element. */
+       struct rte_mbuf *buf; /* SGE buffer. */
 };
+#endif /* !HAVE_EXP_DEVICE_RX_BURST */
 
 /* Flow director queue structure. */
 struct fdir_queue {
@@ -108,10 +110,11 @@ struct rxq {
 	struct ibv_cq *cq; /* Completion Queue. */
 	struct ibv_exp_wq *wq; /* Work Queue. */
 	int32_t (*poll)(); /* Verbs poll function. */
+	int32_t (*recv)(); /* Verbs receive function. */
 #ifdef HAVE_EXP_DEVICE_RX_BURST
 	void (*poll_db)(struct ibv_cq *cq); /* Verbs poll function. */
-#endif /* HAVE_EXP_DEVICE_RX_BURST */
-	int32_t (*recv)(); /* Verbs receive function. */
+	void (*recv_db)(struct ibv_exp_wq *wq); /* Verbs receive function. */
+#endif /* !HAVE_EXP_DEVICE_RX_BURST */
 	unsigned int port_id; /* Port ID for incoming packets. */
 	unsigned int elts_n; /* (*elts)[] length. */
 	unsigned int elts_head; /* Current index in (*elts)[]. */
@@ -122,7 +125,11 @@ struct rxq {
 	unsigned int :28; /* Unused bits. */
 	union {
 		struct rxq_elt_sp (*sp)[]; /* Scattered RX elements. */
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+		struct rte_mbuf *(*no_sp)[]; /* RX elements. */
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 		struct rxq_elt (*no_sp)[]; /* RX elements. */
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 	} elts;
 	uint32_t mb_len; /* Length of a mp-issued mbuf. */
 	unsigned int socket; /* CPU socket ID for allocations. */
@@ -130,13 +137,30 @@ struct rxq {
 	struct ibv_exp_res_domain *rd; /* Resource Domain. */
 	struct fdir_queue fdir_queue; /* Flow director queue. */
 	struct ibv_mr *mr; /* Memory Region (for mp). */
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+	struct ibv_exp_wq_family_v1 *if_wq; /* WQ burst interface. */
+#else /* HAVE_EXP_DEVICE_RX_BURST */
 	struct ibv_exp_wq_family *if_wq; /* WQ burst interface. */
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 #ifdef HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS
 	struct ibv_exp_cq_family_v1 *if_cq; /* CQ interface. */
 #else /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
 	struct ibv_exp_cq_family *if_cq; /* CQ interface. */
 #endif /* HAVE_EXP_DEVICE_ATTR_VLAN_OFFLOADS */
 };
+
+#ifdef HAVE_EXP_DEVICE_RX_BURST
+static inline void
+sge_from_mbuf(struct ibv_sge *sge, struct rte_mbuf *buf, uint32_t lkey)
+{
+	*sge = (struct ibv_sge){
+		.addr = (uintptr_t)((uint8_t *)buf->buf_addr +
+			RTE_PKTMBUF_HEADROOM),
+		.length = buf->buf_len - RTE_PKTMBUF_HEADROOM,
+		.lkey = lkey,
+	};
+}
+#endif /* HAVE_EXP_DEVICE_RX_BURST */
 
 /* Hash RX queue types. */
 enum hash_rxq_type {
