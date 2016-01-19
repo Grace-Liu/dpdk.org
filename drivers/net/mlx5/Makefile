@@ -132,6 +132,10 @@ mlx5_autoconf.h: $(RTE_SDK)/scripts/auto-config-h.sh
 		infiniband/verbs.h \
 		enum IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS \
 		$(AUTOCONF_OUTPUT)
+	$Q sh -- '$<' '$@' \
+		HAVE_EXP_DEVICE_RX_BURST \
+		infiniband/verbs.h \
+		type 'struct ibv_exp_wq_family_v1' $(AUTOCONF_OUTPUT)
 
 $(SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD):.c=.o): mlx5_autoconf.h
 
