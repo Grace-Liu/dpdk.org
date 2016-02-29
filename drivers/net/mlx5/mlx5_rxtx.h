@@ -222,13 +222,21 @@ struct hash_rxq {
 	struct ibv_exp_flow *special_flow[MLX5_MAX_SPECIAL_FLOWS][MLX5_MAX_VLAN_IDS];
 };
 
+#define MLX5_WQE64_INL_DATA 12
+
 struct mlx5_wqe64 {
 	union {
 		struct mlx5_wqe_ctrl_seg ctrl;
 		uint32_t data[4];
 	} ctrl;
 	struct mlx5_wqe_eth_seg eseg;
-	struct mlx5_wqe_data_seg dseg;
+	union {
+		struct mlx5_wqe_data_seg data;
+		struct mlx5_wqe_data_inl_seg {
+			unsigned int byte_cnt;
+			char data[MLX5_WQE64_INL_DATA];
+		} inl;
+	} dseg;
 };
 
 struct ftxq {
@@ -236,9 +244,11 @@ struct ftxq {
 	uint16_t elts_tail; /* First element awaiting completion. */
 	uint16_t elts_comp_cd_init; /* Initial value for countdown. */
 	uint16_t elts_comp_npr; /* number of completion per ring. */
+	uint16_t elts_comp; /* number of completion per ring. */
 	uint16_t elts_n;
 	uint16_t cq_ci;
 	uint16_t wqe_ci;
+	uint16_t wqe_cnt;
 	uint16_t bf_offset;
 	uint16_t bf_buf_size;
 	volatile struct mlx5_cqe64 (*cqes)[];
