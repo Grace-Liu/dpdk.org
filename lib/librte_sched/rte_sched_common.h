@@ -34,6 +34,8 @@
 #ifndef __INCLUDE_RTE_SCHED_COMMON_H__
 #define __INCLUDE_RTE_SCHED_COMMON_H__
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

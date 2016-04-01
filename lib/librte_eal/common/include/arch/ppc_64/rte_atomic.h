@@ -42,6 +42,8 @@
 #ifndef _RTE_ATOMIC_PPC_64_H_
 #define _RTE_ATOMIC_PPC_64_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -33,6 +33,8 @@
 #ifndef _RTE_PREFETCH_ARM32_H_
 #define _RTE_PREFETCH_ARM32_H_
 
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

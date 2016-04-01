@@ -34,6 +34,9 @@
 #ifndef _RTE_BYTEORDER_X86_H_
 #define _RTE_BYTEORDER_X86_H_
 
+#include <stdint.h>
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -37,6 +37,9 @@
 #  error Platform must be built with CONFIG_RTE_FORCE_INTRINSICS
 #endif
 
+#include <stdint.h>
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

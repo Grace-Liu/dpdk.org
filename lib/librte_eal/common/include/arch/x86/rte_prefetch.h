@@ -34,6 +34,8 @@
 #ifndef _RTE_PREFETCH_X86_64_H_
 #define _RTE_PREFETCH_X86_64_H_
 
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

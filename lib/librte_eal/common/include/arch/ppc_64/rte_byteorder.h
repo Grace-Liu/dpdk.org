@@ -38,6 +38,8 @@
 #ifndef _RTE_BYTEORDER_PPC_64_H_
 #define _RTE_BYTEORDER_PPC_64_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
