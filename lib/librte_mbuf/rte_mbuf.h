@@ -750,6 +750,7 @@ struct rte_mbuf {
 	 * or non-atomic) is controlled by the CONFIG_RTE_MBUF_REFCNT_ATOMIC
 	 * config option.
 	 */
+	RTE_STD_C11
 	union {
 		rte_atomic16_t refcnt_atomic; /**< Atomically accessed refcnt */
 		uint16_t refcnt;              /**< Non-atomically accessed refcnt */
@@ -766,6 +767,7 @@ struct rte_mbuf {
 	 * The packet type, which is the combination of outer/inner L2, L3, L4
 	 * and tunnel types.
 	 */
+	RTE_STD_C11
 	union {
 		uint32_t packet_type; /**< L2/L3/L4 and tunnel information. */
 		struct {
@@ -786,6 +788,7 @@ struct rte_mbuf {
 	union {
 		uint32_t rss;     /**< RSS hash result if RSS enabled */
 		struct {
+			RTE_STD_C11
 			union {
 				struct {
 					uint16_t hash;
@@ -812,6 +815,7 @@ struct rte_mbuf {
 	/* second cache line - fields only used in slow path or on TX */
 	MARKER cacheline1 __rte_cache_min_aligned;
 
+	RTE_STD_C11
 	union {
 		void *userdata;   /**< Can be used for external metadata */
 		uint64_t udata64; /**< Allow 8-byte userdata on 32-bit */
@@ -821,6 +825,7 @@ struct rte_mbuf {
 	struct rte_mbuf *next;    /**< Next segment of scattered packet. */
 
 	/* fields to support TX offloads */
+	RTE_STD_C11
 	union {
 		uint64_t tx_offload;       /**< combined for easy fetch */
 		__extension__

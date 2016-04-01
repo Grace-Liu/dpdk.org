@@ -42,6 +42,8 @@
  * as supported symmetric crypto operation combinations.
  */
 
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -333,6 +335,7 @@ struct rte_crypto_sym_xform {
 	/**< next xform in chain */
 	enum rte_crypto_sym_xform_type type
 	; /**< xform type */
+	RTE_STD_C11
 	union {
 		struct rte_crypto_auth_xform auth;
 		/**< Authentication / hash xform */
@@ -371,6 +374,7 @@ struct rte_crypto_sym_op {
 
 	enum rte_crypto_sym_op_sess_type sess_type;
 
+	RTE_STD_C11
 	union {
 		struct rte_cryptodev_sym_session *session;
 		/**< Handle for the initialised session context */

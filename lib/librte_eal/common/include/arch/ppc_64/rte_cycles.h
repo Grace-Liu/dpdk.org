@@ -33,6 +33,8 @@
 #ifndef _RTE_CYCLES_PPC_64_H_
 #define _RTE_CYCLES_PPC_64_H_
 
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -52,6 +54,7 @@ rte_rdtsc(void)
 {
 	union {
 		uint64_t tsc_64;
+		RTE_STD_C11
 		struct {
 #if RTE_BYTE_ORDER == RTE_BIG_ENDIAN
 			uint32_t hi_32;

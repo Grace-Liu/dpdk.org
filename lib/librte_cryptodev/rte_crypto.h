@@ -40,6 +40,8 @@
  *
  */
 
+#include <rte_common.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -111,6 +113,7 @@ struct rte_crypto_op {
 	void *opaque_data;
 	/**< Opaque pointer for user data */
 
+	RTE_STD_C11
 	union {
 		struct rte_crypto_sym_op *sym;
 		/**< Symmetric operation parameters */
