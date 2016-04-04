@@ -64,6 +64,8 @@ rte_mov16(uint8_t *dst, const uint8_t *src);
 static inline void
 rte_mov32(uint8_t *dst, const uint8_t *src);
 
+#ifdef __DOXYGEN__
+
 /**
  * Copy 48 bytes from one location to another using optimised
  * instructions. The locations should not overlap.
@@ -75,6 +77,8 @@ rte_mov32(uint8_t *dst, const uint8_t *src);
  */
 static inline void
 rte_mov48(uint8_t *dst, const uint8_t *src);
+
+#endif /* __DOXYGEN__ */
 
 /**
  * Copy 64 bytes from one location to another using optimised
@@ -132,13 +136,12 @@ rte_mov256(uint8_t *dst, const uint8_t *src);
 static void *
 rte_memcpy(void *dst, const void *src, size_t n);
 
-#endif /* __DOXYGEN__ */
-
 /*
  * memcpy() function used by rte_memcpy macro
  */
 static inline void *
 rte_memcpy_func(void *dst, const void *src, size_t n) __attribute__((always_inline));
 
+#endif /* __DOXYGEN__ */
 
 #endif /* _RTE_MEMCPY_H_ */
