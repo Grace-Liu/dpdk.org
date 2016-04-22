@@ -96,6 +96,7 @@ struct priv {
 	unsigned int vlan_filter_n; /* Number of configured VLAN filters. */
 	/* Device properties. */
 	uint16_t mtu; /* Configured MTU. */
+	uint16_t numvfs; /* Number of Virtual Functions setted. */
 	uint8_t port; /* Physical port number. */
 	unsigned int started:1; /* Device started, flows enabled. */
 	unsigned int promisc_req:1; /* Promiscuous mode requested. */
@@ -174,6 +175,7 @@ int mlx5_is_secondary(void);
 int priv_get_ifname(const struct priv *, char (*)[IF_NAMESIZE]);
 int priv_ifreq(const struct priv *, int req, struct ifreq *);
 int priv_get_mtu(struct priv *, uint16_t *);
+int priv_get_numvfs(struct priv *, uint16_t *);
 int priv_set_flags(struct priv *, unsigned int, unsigned int);
 int mlx5_dev_configure(struct rte_eth_dev *);
 void mlx5_dev_infos_get(struct rte_eth_dev *, struct rte_eth_dev_info *);

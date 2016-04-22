@@ -489,6 +489,10 @@ mlx5_pci_devinit(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		priv_get_mtu(priv, &priv->mtu);
 		DEBUG("port %u MTU is %u", priv->port, priv->mtu);
 
+		/* Get actual MTU if possible. */
+		priv_get_numvfs(priv, &priv->numvfs);
+		DEBUG("port %u number of VF are %u", priv->port, priv->numvfs);
+
 		/* from rte_ethdev.c */
 		{
 			char name[RTE_ETH_NAME_MAX_LEN];

@@ -320,7 +320,8 @@ struct ftxq {
 	uint16_t wqe_cnt;
 	uint16_t bf_offset;
 	uint16_t bf_buf_size;
-	uint16_t max_inline; /* Maximum size to inline in a WQE. */
+	uint16_t max_inline:15; /* Maximum size to inline in a WQE. */
+	uint16_t inl_header:1; /* do not by-pass the E-Switch. */
 	volatile struct mlx5_cqe64 (*cqes)[];
 	volatile struct mlx5_wqe64 (*wqes)[];
 	volatile uint32_t *qp_db;

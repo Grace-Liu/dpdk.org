@@ -300,11 +300,16 @@ static inline void
 mlx5_wqe_write(struct ftxq *txq, volatile struct mlx5_wqe64 *wqe,
 	       uintptr_t addr, uint32_t length, uint32_t lkey)
 {
-	/* Copy the first bytes into the inline header */
-	rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
-		   (void *)(uintptr_t)addr, MLX5_ETH_INLINE_HEADER_SIZE);
-	addr += MLX5_ETH_INLINE_HEADER_SIZE;
-	length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	if (txq->inl_header) {
+		/* wqe->eseg.inline_hdr_sz is initialised to the correct value
+		 * in txq_alloc_elts().
+		 * Copy the first 16 bytes into the inline header */
+		rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
+			   (void *)(uintptr_t)addr,
+			   MLX5_ETH_INLINE_HEADER_SIZE);
+		addr += MLX5_ETH_INLINE_HEADER_SIZE;
+		length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	}
 
 	wqe->dseg.byte_count = htonl(length);
 	wqe->dseg.lkey = lkey;
@@ -368,12 +373,17 @@ mlx5_wqe_write_full(struct ftxq *txq, volatile struct mlx5_wqe64 *wqe,
 		.rsvd2 = 0,
 	};
 
-	wqe->eseg.inline_hdr_sz = htons(MLX5_ETH_INLINE_HEADER_SIZE);
-	/* Copy the first 16 bytes into the inline header */
-	rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
-		   (void *)(uintptr_t)addr, MLX5_ETH_INLINE_HEADER_SIZE);
-	addr += MLX5_ETH_INLINE_HEADER_SIZE;
-	length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	if (txq->inl_header) {
+		wqe->eseg.inline_hdr_sz =
+			htons(MLX5_ETH_VLAN_INLINE_HEADER_SIZE);
+		/* Copy the first 16 bytes into the inline header */
+		rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
+			   (void *)(uintptr_t)addr,
+			   MLX5_ETH_INLINE_HEADER_SIZE);
+		addr += MLX5_ETH_INLINE_HEADER_SIZE;
+		length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	} else
+		wqe->eseg.inline_hdr_sz = 0;
 
 	wqe->dseg.byte_count = htonl(length);
 	wqe->dseg.lkey = lkey;
@@ -443,13 +453,16 @@ mlx5_wqe_write_inline(struct ftxq *txq, volatile struct mlx5_wqe64 *wqe,
 	wqe->eseg.rsvd1 = 0;
 	wqe->eseg.mss = 0;
 	wqe->eseg.rsvd2 = 0;
-	wqe->eseg.inline_hdr_sz = htons(MLX5_ETH_INLINE_HEADER_SIZE);
-	/* Copy the first 16 bytes into the inline header */
-	rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
-		   (void *)(uintptr_t)addr,
-		   MLX5_ETH_INLINE_HEADER_SIZE);
-	addr += MLX5_ETH_INLINE_HEADER_SIZE;
-	length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	if (txq->inl_header) {
+		wqe->eseg.inline_hdr_sz = htons(MLX5_ETH_INLINE_HEADER_SIZE);
+		/* Copy the first 16 bytes into the inline header */
+		rte_memcpy((void *)(uintptr_t)wqe->eseg.inline_hdr_start,
+				(void *)(uintptr_t)addr,
+				MLX5_ETH_INLINE_HEADER_SIZE);
+		addr += MLX5_ETH_INLINE_HEADER_SIZE;
+		length -= MLX5_ETH_INLINE_HEADER_SIZE;
+	} else
+		wqe->eseg.inline_hdr_sz = 0;
 
 	size = (sizeof(wqe->ctrl.ctrl) +
 		sizeof(wqe->eseg) +

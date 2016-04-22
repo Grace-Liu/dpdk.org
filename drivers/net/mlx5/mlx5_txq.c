@@ -212,7 +212,6 @@ static void
 txq_alloc_elts(struct txq *txq, unsigned int elts_n)
 {
 	unsigned int i;
-	unsigned int comp = txq->ftxq.elts_comp_cd_init;
 
 	for (i = 0; (i != elts_n); ++i)
 		(*txq->ftxq.elts)[i] = NULL;
@@ -221,15 +220,11 @@ txq_alloc_elts(struct txq *txq, unsigned int elts_n)
 		volatile struct mlx5_wqe64 *wqe = &(*txq->ftxq.wqes)[i];
 
 		memset((void *)(uintptr_t)wqe, 0, sizeof(struct mlx5_wqe64));
-		wqe->eseg.inline_hdr_sz = htons(MLX5_ETH_INLINE_HEADER_SIZE);
-		wqe->ctrl.data[1] = htonl(txq->ftxq.qp_num_8s | 4);
-		/* Store the completion request in the WQE. */
-		if (--comp == 0) {
-			wqe->ctrl.data[2] = htonl(8);
-			comp = txq->ftxq.elts_comp_cd_init;
-		}
+		if (txq->ftxq.inl_header)
+			wqe->eseg.inline_hdr_sz = htons(MLX5_ETH_INLINE_HEADER_SIZE);
 		else
-			wqe->ctrl.data[2] = 0;
+			wqe->eseg.inline_hdr_sz = 0;
+		wqe->ctrl.data[1] = htonl(txq->ftxq.qp_num_8s | 4);
 	}
 	DEBUG("%p: allocated and configured %u WRs", (void *)txq, elts_n);
 	txq->ftxq.elts_head = 0;
@@ -400,6 +395,7 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		goto error;
 	}
 	tmpl.ftxq.elts_n = desc;
+	tmpl.ftxq.inl_header = !!priv->numvfs;
 	/* Request send completion every MLX5_PMD_TX_PER_COMP_REQ packets or
 	 * at least 4 times per ring. */
 	tmpl.ftxq.elts_comp_cd_init =

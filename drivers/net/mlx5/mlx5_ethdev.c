@@ -200,16 +200,11 @@ static int
 priv_sysfs_read(const struct priv *priv, const char *entry,
 		char *buf, size_t size)
 {
-	char ifname[IF_NAMESIZE];
 	FILE *file;
 	int ret;
 	int err;
 
-	if (priv_get_ifname(priv, &ifname))
-		return -1;
-
-	MKSTR(path, "%s/device/net/%s/%s", priv->ctx->device->ibdev_path,
-	      ifname, entry);
+	MKSTR(path, "%s/%s", priv->ctx->device->ibdev_path, entry);
 
 	file = fopen(path, "rb");
 	if (file == NULL)
@@ -378,9 +373,38 @@ priv_get_mtu(struct priv *priv, uint16_t *mtu)
 {
 	unsigned long ulong_mtu;
 
-	if (priv_get_sysfs_ulong(priv, "mtu", &ulong_mtu) == -1)
+	char ifname[IF_NAMESIZE];
+
+	if (priv_get_ifname(priv, &ifname))
+		return -1;
+
+	MKSTR(path, "device/net/%s/mtu", ifname);
+
+	if (priv_get_sysfs_ulong(priv, path, &ulong_mtu) == -1)
 		return -1;
 	*mtu = ulong_mtu;
+	return 0;
+}
+
+/**
+ * Get device VF configured.
+ *
+ * @param priv
+ *   Pointer to private structure.
+ * @param[out] vfs
+ *   VFS number output buffer.
+ *
+ * @return
+ *   0 on success, -1 on failure and errno is set.
+ */
+int
+priv_get_numvfs(struct priv *priv, uint16_t *vfs)
+{
+	unsigned long ulong_vfs;
+
+	if (priv_get_sysfs_ulong(priv, "device/sriov_numvfs", &ulong_vfs) == -1)
+		return -1;
+	*vfs = ulong_vfs;
 	return 0;
 }
 
